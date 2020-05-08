@@ -64,7 +64,6 @@ riscv_gen_hdrs = \
 riscv_insn_list = \
 	customlw \
 	customsw \
-
 	add \
 	addi \
 	addiw \
