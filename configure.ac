@@ -43,11 +43,6 @@ AC_CONFIG_AUX_DIR([scripts])
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 
-m4_include(ax_require_defined.m4)
-m4_include(ax_append_flag.m4)
-m4_include(ax_check_link_flag.m4)
-m4_include(ax_append_link_flags.m4)
-
 #-------------------------------------------------------------------------
 # Checks for programs
 #-------------------------------------------------------------------------
@@ -58,9 +53,9 @@ AC_CHECK_TOOL([AR],[ar])
 AC_CHECK_TOOL([RANLIB],[ranlib])
 AC_PATH_PROG([DTC],[dtc],[no])
 AS_IF([test x"$DTC" == xno],AC_MSG_ERROR([device-tree-compiler not found]))
-AC_DEFINE_UNQUOTED(DTC, ["dtc"], [Executable name of device-tree-compiler])
+AC_DEFINE_UNQUOTED(DTC, ["$DTC"], [Path to the device-tree-compiler])
 
-AC_C_BIGENDIAN
+AC_C_BIGENDIAN(AC_MSG_ERROR([Spike requires a little-endian host]))
 
 #-------------------------------------------------------------------------
 # MCPPBS specific program checks
@@ -78,16 +73,11 @@ MCPPBS_PROG_INSTALL
 AC_HEADER_STDC
 
 #-------------------------------------------------------------------------
-# Checks for type
-#-------------------------------------------------------------------------
-
-AC_CHECK_TYPE([__int128_t], AC_SUBST([HAVE_INT128],[yes]))
-
-#-------------------------------------------------------------------------
 # Default compiler flags
 #-------------------------------------------------------------------------
 
-AX_APPEND_LINK_FLAGS([-Wl,--export-dynamic])
+AC_SUBST([CFLAGS],  ["-Wall -Wno-unused -g -O2"])
+AC_SUBST([CXXFLAGS],["-Wall -Wno-unused -g -O2 -std=c++11"])
 
 #-------------------------------------------------------------------------
 # MCPPBS subproject list

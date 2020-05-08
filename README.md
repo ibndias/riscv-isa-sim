@@ -13,12 +13,11 @@ Spike supports the following RISC-V ISA features:
   - Zifencei extension, v2.0
   - Zicsr extension, v2.0
   - M extension, v2.0
-  - A extension, v2.1
+  - A extension, v2.0
   - F extension, v2.2
   - D extension, v2.2
   - Q extension, v2.2
   - C extension, v2.0
-  - V extension, v0.9-draft-20200403, w/ Zvlsseg, w/o Zvamo/Zvediv, (_requires a 64-bit host_)
   - Conformance to both RVWMO and RVTSO (Spike is sequentially consistent)
   - Machine, Supervisor, and User modes, v1.11
   - Debug v0.14
@@ -128,7 +127,7 @@ To see the contents of memory with a virtual address (0 for core 0):
 
     : mem 0 2020
 
-You can advance by one instruction by pressing the enter key. You can also
+You can advance by one instruction by pressing <enter>. You can also
 execute until a desired equality is reached:
 
     : until pc 0 2020                   (stop when pc=2020)

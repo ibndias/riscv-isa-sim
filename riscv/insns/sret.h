@@ -1,4 +1,3 @@
-require_extension('S');
 require_privilege(get_field(STATE.mstatus, MSTATUS_TSR) ? PRV_M : PRV_S);
 set_pc_and_serialize(p->get_state()->sepc);
 reg_t s = STATE.mstatus;

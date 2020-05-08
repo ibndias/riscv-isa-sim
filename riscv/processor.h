@@ -8,9 +8,7 @@
 #include "trap.h"
 #include <string>
 #include <vector>
-#include <unordered_map>
 #include <map>
-#include <cassert>
 #include "debug_rom_defines.h"
 
 class processor_t;
@@ -29,11 +27,11 @@ struct insn_desc_t
   insn_func_t rv64;
 };
 
-// regnum, data
-typedef std::unordered_map<reg_t, freg_t> commit_log_reg_t;
-
-// addr, value, size
-typedef std::vector<std::tuple<reg_t, uint64_t, uint8_t>> commit_log_mem_t;
+struct commit_log_reg_t
+{
+  reg_t addr;
+  freg_t data;
+};
 
 typedef struct
 {
@@ -85,72 +83,6 @@ typedef struct
   bool load;
 } mcontrol_t;
 
-inline reg_t BITS(reg_t v, int hi, int lo){
-  return (v >> lo) & ((2 << (hi - lo)) - 1);
-}
-
-enum VRM{
-  RNU = 0,
-  RNE,
-  RDN,
-  ROD,
-  INVALID_RM
-};
-
-template<uint64_t N>
-struct type_usew_t;
-
-template<>
-struct type_usew_t<8>
-{
-  using type=uint8_t;
-};
-
-template<>
-struct type_usew_t<16>
-{
-  using type=uint16_t;
-};
-
-template<>
-struct type_usew_t<32>
-{
-  using type=uint32_t;
-};
-
-template<>
-struct type_usew_t<64>
-{
-  using type=uint64_t;
-};
-
-template<uint64_t N>
-struct type_sew_t;
-
-template<>
-struct type_sew_t<8>
-{
-  using type=int8_t;
-};
-
-template<>
-struct type_sew_t<16>
-{
-  using type=int16_t;
-};
-
-template<>
-struct type_sew_t<32>
-{
-  using type=int32_t;
-};
-
-template<>
-struct type_sew_t<64>
-{
-  using type=int64_t;
-};
-
 // architectural state of a RISC-V hart
 struct state_t
 {
@@ -184,14 +116,12 @@ struct state_t
   reg_t stvec;
   reg_t satp;
   reg_t scause;
-
   reg_t dpc;
-  reg_t dscratch0, dscratch1;
+  reg_t dscratch;
   dcsr_t dcsr;
   reg_t tselect;
   mcontrol_t mcontrol[num_triggers];
   reg_t tdata2[num_triggers];
-  bool debug_mode;
 
   static const int n_pmp = 16;
   uint8_t pmpcfg[n_pmp];
@@ -211,8 +141,6 @@ struct state_t
 
 #ifdef RISCV_ENABLE_COMMITLOG
   commit_log_reg_t log_reg_write;
-  commit_log_mem_t log_mem_read;
-  commit_log_mem_t log_mem_write;
   reg_t last_inst_priv;
   int last_inst_xlen;
   int last_inst_flen;
@@ -224,15 +152,6 @@ typedef enum {
   OPERATION_STORE,
   OPERATION_LOAD,
 } trigger_operation_t;
-
-typedef enum {
-  // 65('A') ~ 90('Z') is reserved for standard isa in misa
-  EXT_ZFH   = 0,
-  EXT_ZVAMO,
-  EXT_ZVEDIV,
-  EXT_ZVLSSEG,
-  EXT_ZVQMAC,
-} isa_extension_t;
 
 // Count number of contiguous 1 bits starting from the LSB.
 static int cto(reg_t val)
@@ -247,17 +166,11 @@ static int cto(reg_t val)
 class processor_t : public abstract_device_t
 {
 public:
-  processor_t(const char* isa, const char* priv, const char* varch,
-              simif_t* sim, uint32_t id, bool halt_on_reset,
-              FILE *log_file);
+  processor_t(const char* isa, simif_t* sim, uint32_t id, bool halt_on_reset=false);
   ~processor_t();
 
   void set_debug(bool value);
   void set_histogram(bool value);
-#ifdef RISCV_ENABLE_COMMITLOG
-  void enable_log_commits();
-  bool get_log_commits_enabled() const { return log_commits_enabled; }
-#endif
   void reset();
   void step(size_t n); // run for n cycles
   void set_csr(int which, reg_t val);
@@ -274,10 +187,8 @@ public:
   }
   extension_t* get_extension() { return ext; }
   bool supports_extension(unsigned char ext) {
-    if (isupper(ext))
-      return ((state.misa >> (ext - 'A')) & 1);
-    else
-      return extension_table[ext];
+    if (ext >= 'a' && ext <= 'z') ext += 'A' - 'a';
+    return ext >= 'A' && ext <= 'Z' && ((state.misa >> (ext - 'A')) & 1);
   }
   reg_t pc_alignment_mask() {
     return ~(reg_t)(supports_extension('C') ? 0 : 2);
@@ -291,8 +202,6 @@ public:
   void update_histogram(reg_t pc);
   const disassembler_t* get_disassembler() { return disassembler; }
 
-  FILE *get_log_file() { return log_file; }
-
   void register_insn(insn_desc_t);
   void register_extension(extension_t*);
 
@@ -304,13 +213,13 @@ public:
   bool debug;
   // When true, take the slow simulation path.
   bool slow_path();
-  bool halted() { return state.debug_mode; }
+  bool halted() { return state.dcsr.cause ? true : false; }
   bool halt_request;
 
   // Return the index of a trigger that matched, or -1.
   inline int trigger_match(trigger_operation_t operation, reg_t address, reg_t data)
   {
-    if (state.debug_mode)
+    if (state.dcsr.cause)
       return -1;
 
     bool chain_ok = true;
@@ -350,7 +259,7 @@ public:
           break;
         case MATCH_NAPOT:
           {
-            reg_t mask = ~((1 << (cto(state.tdata2[i])+1)) - 1);
+            reg_t mask = ~((1 << cto(state.tdata2[i])) - 1);
             if ((value & mask) != (state.tdata2[i] & mask))
               continue;
           }
@@ -401,11 +310,7 @@ private:
   reg_t max_isa;
   std::string isa_string;
   bool histogram_enabled;
-  bool log_commits_enabled;
-  FILE *log_file;
   bool halt_on_reset;
-  std::vector<bool> extension_table;
-  
 
   std::vector<insn_desc_t> instructions;
   std::map<reg_t,uint64_t> pc_histogram;
@@ -425,76 +330,13 @@ private:
   friend class clint_t;
   friend class extension_t;
 
-  void parse_varch_string(const char*);
-  void parse_priv_string(const char*);
-  void parse_isa_string(const char*);
+  void parse_isa_string(const char* isa);
   void build_opcode_map();
   void register_base_instructions();
   insn_func_t decode_insn(insn_t insn);
 
   // Track repeated executions for processor_t::disasm()
   uint64_t last_pc, last_bits, executions;
-public:
-  class vectorUnit_t {
-    public:
-      processor_t* p;
-      void *reg_file;
-      char reg_referenced[NVPR];
-      int setvl_count;
-      reg_t reg_mask, vlmax, vmlen;
-      reg_t vstart, vxrm, vxsat, vl, vtype, vlenb;
-      reg_t vediv, vsew, vlmul;
-      reg_t ELEN, VLEN, SLEN;
-      bool vill;
-
-      // vector element for varies SEW
-      template<class T>
-        T& elt(reg_t vReg, reg_t n, bool is_write = false){
-          assert(vsew != 0);
-          assert((VLEN >> 3)/sizeof(T) > 0);
-          reg_t elts_per_reg = (VLEN >> 3) / (sizeof(T));
-          vReg += n / elts_per_reg;
-          n = n % elts_per_reg;
-#ifdef WORDS_BIGENDIAN
-          // "V" spec 0.7.1 requires lower indices to map to lower significant
-          // bits when changing SEW, thus we need to index from the end on BE.
-  	  n ^= elts_per_reg - 1;
-#endif
-          reg_referenced[vReg] = 1;
-
-#ifdef RISCV_ENABLE_COMMITLOG
-          if (is_write)
-            p->get_state()->log_reg_write[((vReg) << 2) | 2] = {0, 0};
-#endif
-
-          T *regStart = (T*)((char*)reg_file + vReg * (VLEN >> 3));
-          return regStart[n];
-        }
-    public:
-
-      void reset();
-
-      vectorUnit_t(){
-        reg_file = 0;
-      }
-
-      ~vectorUnit_t(){
-        free(reg_file);
-        reg_file = 0;
-      }
-
-      reg_t set_vl(int rd, int rs1, reg_t reqVL, reg_t newType);
-
-      reg_t get_vlen() { return VLEN; }
-      reg_t get_elen() { return ELEN; }
-      reg_t get_slen() { return SLEN; }
-
-      VRM get_vround_mode() {
-        return (VRM)vxrm;
-      }
-  };
-
-  vectorUnit_t VU;
 };
 
 reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc);
