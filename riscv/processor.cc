@@ -449,6 +449,18 @@ void processor_t::set_csr(int which, reg_t val)
     case CSR_SCOUNTEREN:
       state.scounteren = val;
       break;
+    case CSR_BTID0:
+      state.btid0 = val;
+      break;
+    case CSR_BTID1:
+      state.btid1 = val;
+      break;
+    case CSR_BTID2:
+      state.btid2 = val;
+      break;
+    case CSR_BTID3:
+      state.btid3 = val;
+      break;
     case CSR_MCOUNTEREN:
       state.mcounteren = val;
       break;
@@ -649,6 +661,10 @@ reg_t processor_t::get_csr(int which)
     case CSR_SEPC: return state.sepc & pc_alignment_mask();
     case CSR_STVAL: return state.stval;
     case CSR_STVEC: return state.stvec;
+    case CSR_BTID0: return state.btid0;
+    case CSR_BTID1: return state.btid1;
+    case CSR_BTID2: return state.btid2;
+    case CSR_BTID3: return state.btid3;
     case CSR_SCAUSE:
       if (max_xlen > xlen)
         return state.scause | ((state.scause >> (max_xlen-1)) << (xlen-1));

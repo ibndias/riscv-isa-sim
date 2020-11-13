@@ -104,6 +104,10 @@ struct state_t
   reg_t mtvec;
   reg_t mcause;
   reg_t minstret;
+  reg_t btid0=0;
+  reg_t btid1=0;
+  reg_t btid2=0;
+  reg_t btid3=0;
   reg_t mie;
   reg_t mip;
   reg_t medeleg;

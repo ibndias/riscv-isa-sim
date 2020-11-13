@@ -748,6 +748,10 @@
 #define MASK_CUSTOM3_RD_RS1  0x707f
 #define MATCH_CUSTOM3_RD_RS1_RS2 0x707b
 #define MASK_CUSTOM3_RD_RS1_RS2  0x707f
+#define CSR_BTID0 0x800
+#define CSR_BTID1 0x801
+#define CSR_BTID2 0x802
+#define CSR_BTID3 0x803
 #define CSR_FFLAGS 0x1
 #define CSR_FRM 0x2
 #define CSR_FCSR 0x3
